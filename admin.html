@@ -1,0 +1,439 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Quản lý Admin</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- Header -->
+    <header>
+        <nav class="navbar navbar-expand-lg navbar-light bg-light">
+            <a class="navbar-brand" href="index.html">Logo</a>
+            <ul class="navbar-nav">
+                <li class="nav-item"><a class="nav-link" href="store.html">Cửa hàng</a></li>
+                <li class="nav-item"><a class="nav-link" href="admin.html">Quản lý</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <!-- Nội dung chính -->
+    <div class="container mt-4">
+        <h2>Quản lý Admin</h2>
+
+        <!-- Tabs -->
+        <ul class="nav nav-tabs" id="adminTabs">
+            <li class="nav-item">
+                <a class="nav-link active" href="#products" data-toggle="tab">Sản phẩm</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#orders" data-toggle="tab">Đơn hàng</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#users" data-toggle="tab">Người dùng</a>
+            </li>
+        </ul>
+
+        <!-- Nội dung tabs -->
+        <div class="tab-content mt-3">
+            <!-- Sản phẩm -->
+            <div class="tab-pane fade show active" id="products">
+                <button class="btn btn-success mb-3" data-toggle="modal" data-target="#addProductModal">Thêm sản phẩm</button>
+                <table class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Tên</th>
+                            <th>Danh mục</th>
+                            <th>Giá (VNĐ)</th>
+                            <th>Ảnh</th>
+                            <th>Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody id="product-list"></tbody>
+                </table>
+            </div>
+            <!-- Đơn hàng -->
+            <div class="tab-pane fade" id="orders">
+                <table class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Khách hàng</th>
+                            <th>Email</th>
+                            <th>Tổng tiền</th>
+                            <th>Trạng thái</th>
+                            <th>Hành động</th>
+                        </tr>
+                    </thead> 
+                    <tbody id="order-list"></tbody>
+                </table>
+            </div>
+            <!-- Người dùng -->
+            <div class="tab-pane fade" id="users">
+                <table class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Tên</th>
+                            <th>Email</th>
+                            <th>Vai trò</th>
+                        </tr>
+                    </thead>
+                    <tbody id="user-list"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Modal thêm sản phẩm -->
+        <div class="modal fade" id="addProductModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Thêm sản phẩm</h5>
+                        <button type="button" class="close" data-dismiss="modal">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="add-product-form">
+                            <div class="form-group">
+                                <label for="product-name">Tên sản phẩm</label>
+                                <input type="text" class="form-control" id="product-name" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="product-category">Danh mục</label>
+                                <select class="form-control" id="product-category" required>
+                                    <option value="Nồi">Nồi inox</option>
+                                    <option value="Nồi">Nồi áp suất</option>
+                                    <option value="Chảo">Chảo chống dính</option>
+                                    <option value="Nồi">Chảo inox</option>
+                                    
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="product-price">Giá (VNĐ)</label>
+                                <input type="number" class="form-control" id="product-price" min="1" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="product-image">Tên file ảnh</label>
+                                <input type="text" class="form-control" id="product-image" placeholder="ví dụ: image.jpg" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Lưu sản phẩm</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal sửa sản phẩm -->
+        <div class="modal fade" id="editProductModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Sửa sản phẩm</h5>
+                        <button type="button" class="close" data-dismiss="modal">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="edit-product-form">
+                            <input type="hidden" id="edit-product-id">
+                            <div class="form-group">
+                                <label for="edit-product-name">Tên sản phẩm</label>
+                                <input type="text" class="form-control" id="edit-product-name" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="edit-product-category">Danh mục</label>
+                                <select class="form-control" id="edit-product-category" required>
+                                    <option value="Nồi">Nồi</option>
+                                    <option value="Chảo">Chảo</option>
+                                    <option value="Bếp">Bếp</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="edit-product-price">Giá (VNĐ)</label>
+                                <input type="number" class="form-control" id="edit-product-price" min="1" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="edit-product-image">Tên file ảnh</label>
+                                <input type="text" class="form-control" id="edit-product-image" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Cập nhật</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-light text-center py-3">
+        <p>© 2025 Cửa hàng nồi chảo gia dụng</p>
+    </footer>
+
+    <!-- Thư viện -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/admin.js"></script>
+    <script>
+function populateUserList(users) {
+    const userList = document.getElementById('user-list');
+    userList.innerHTML = ''; // Clear existing rows
+
+    users.forEach(user => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${user.id}</td>
+            <td>${user.name || 'N/A'}</td>
+            <td>${user.email}</td>
+            <td>${user.role}</td>
+        `;
+        userList.appendChild(row);
+    });
+}
+
+// Fetch user list on page load
+(async function fetchUsers() {
+    try {
+        const response = await fetch('api/users.php');
+        const result = await response.json();
+
+        if (result.error) {
+            alert(result.error);
+        } else {
+            populateUserList(result);
+        }
+    } catch (error) {
+        alert('Đã xảy ra lỗi khi lấy danh sách người dùng!');
+        console.error(error);
+    }
+})();
+
+function populateProductList(products) {
+    const productList = document.getElementById('product-list');
+    productList.innerHTML = ''; // Clear existing rows
+
+    products.forEach(product => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${product.id}</td>
+            <td>${product.name}</td>
+            <td>${product.category}</td>
+            <td>${product.price.toLocaleString('vi-VN')} VNĐ</td>
+            <td><img src="${product.image}" alt="${product.name}" style="width: 50px; height: 50px;"></td>
+            <td>
+                <button class="btn btn-warning btn-sm edit-product-btn" data-id="${product.id}">Sửa</button>
+                <button class="btn btn-danger btn-sm delete-product-btn" data-id="${product.id}">Xóa</button>
+            </td>
+        `;
+        productList.appendChild(row);
+    });
+
+    // Add event listeners for edit buttons
+    document.querySelectorAll('.edit-product-btn').forEach(button => {
+        button.addEventListener('click', function () {
+            const productId = this.getAttribute('data-id');
+            openEditProductModal(productId);
+        });
+    });
+
+    // Add event listeners for delete buttons
+    document.querySelectorAll('.delete-product-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const productId = this.getAttribute('data-id');
+            deleteProduct(productId);
+        });
+    });
+}
+
+async function deleteProduct(productId) {
+    if (!confirm('Bạn có chắc chắn muốn xóa sản phẩm này?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch('api/products.php', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: parseInt(productId) }) // Ensure ID is sent as an integer
+        });
+
+        const result = await response.json();
+        if (result.error) {
+            alert('Lỗi: ' + result.error);
+        } else {
+            alert(result.message);
+            fetchProducts(); // Refresh the product list
+        }
+    } catch (error) {
+        alert('Đã xảy ra lỗi khi xóa sản phẩm!');
+        console.error(error);
+    }
+}
+
+async function openEditProductModal(productId) {
+    try {
+        const response = await fetch(`api/products.php?id=${productId}`);
+        const product = await response.json();
+
+        if (product.error) {
+            alert('Lỗi: ' + product.error);
+            return;
+        }
+
+        // Populate the edit form with product data
+        $('#edit-product-id').val(product.id);
+        $('#edit-product-name').val(product.name);
+        $('#edit-product-category').val(product.category);
+        $('#edit-product-price').val(product.price);
+        $('#edit-product-image').val(product.image);
+
+        // Show the modal
+        $('#editProductModal').modal('show');
+    } catch (error) {
+        alert('Đã xảy ra lỗi khi tải thông tin sản phẩm!');
+        console.error(error);
+    }
+}
+
+$('#edit-product-form').on('submit', function (e) {
+    e.preventDefault();
+
+    const id = $('#edit-product-id').val();
+    const name = $('#edit-product-name').val().trim();
+    const category = $('#edit-product-category').val().trim();
+    const price = parseFloat($('#edit-product-price').val());
+    const image = $('#edit-product-image').val().trim();
+
+    if (!id || !name || !category || price <= 0 || !image) {
+        alert('Vui lòng điền đầy đủ thông tin sản phẩm!');
+        return;
+    }
+
+    const data = {
+        id: parseInt(id),
+        name: name,
+        category: category,
+        price: price,
+        image: image
+    };
+
+    $.ajax({
+        url: 'api/products.php',
+        type: 'PUT',
+        contentType: 'application/json',
+        data: JSON.stringify(data),
+        success: function (result) {
+            if (result.error) {
+                alert('Lỗi: ' + result.error);
+            } else {
+                alert(result.message);
+                $('#editProductModal').modal('hide');
+                fetchProducts(); // Refresh the product list
+            }
+        },
+        error: function (xhr, status, error) {
+            alert('Đã xảy ra lỗi: ' + xhr.responseText);
+            console.error('Error:', xhr.responseText);
+        }
+    });
+});
+
+// Fetch product list on page load
+(async function fetchProducts() {
+    try {
+        const response = await fetch('api/products.php');
+        const result = await response.json();
+
+        if (result.error) {
+            alert(result.error);
+        } else {
+            populateProductList(result);
+        }
+    } catch (error) {
+        alert('Đã xảy ra lỗi khi lấy danh sách sản phẩm!');
+        console.error(error);
+    }
+})();
+
+$('#add-product-form').on('submit', function(e) {
+    e.preventDefault();
+
+    const name = $('#product-name').val().trim();
+    const category = $('#product-category').val().trim();
+    const price = parseFloat($('#product-price').val());
+    const image = $('#product-image').val().trim();
+
+    if (!name || !category || price <= 0 || !image) {
+        alert('Vui lòng điền đầy đủ thông tin sản phẩm!');
+        return;
+    }
+
+    const data = {
+        name: name,
+        category: category,
+        price: price,
+        image: image
+    };
+
+    $.ajax({
+        url: 'api/products.php',
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(data),
+        success: function(result) {
+            if (result.error) {
+                alert('Lỗi: ' + result.error);
+            } else {
+                alert(result.message);
+                $('#addProductModal').modal('hide');
+                fetchProducts(); // Refresh the product list
+            }
+        },
+        error: function(xhr, status, error) {
+            alert('Đã xảy ra lỗi: ' + xhr.responseText);
+            console.error('Error:', xhr.responseText);
+        }
+    });
+});
+</script>
+</body>
+</html>
